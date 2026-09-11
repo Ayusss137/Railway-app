@@ -8,7 +8,7 @@ import time
 
 client = NTESClient()
 TRAIN_NUMBER = ["12658", "12141", "12163"]
-TRAIN_DATE = "27-Aug-2026"
+TRAIN_DATE = "10-Sep-2026"
 os.makedirs("snapshots", exist_ok=True)
 
 finished_trains = set()
