@@ -49,9 +49,9 @@ def get_live_last_ride(train_no):
             continue
     return None
 
-def get_last_n_rides(train_no, n=7):
+def get_last_n_rides(train_no, n=7, max_lookback=30):
     results = []
-    for days_back in range(1, n + 5):
+    for days_back in range(1, max_lookback):
         if len(results) >= n:
             break
         date = (datetime.now() - timedelta(days=days_back)).strftime("%d-%b-%Y")

@@ -1,43 +1,41 @@
-import json
 import pandas as pd
+from datetime import datetime
 from ntes import NTESClient
 
-with open('schedules.json') as f:
-    data = json.load(f)
+df = pd.read_csv('stops_new.csv', dtype={'train_number': str})
+trains_df = pd.read_csv('trains_new.csv', dtype={'number': str}).set_index('number')
 
-df = pd.DataFrame(data)
 client = NTESClient()
 
 def validate_train(train_no):
+    today = datetime.now().strftime("%d-%b-%Y")
     try:
-        client.live_status(train_no, "10-Sep-2026")
+        client.live_status(train_no, today)
         return True
     except Exception:
         return False
 
-def find_station_code(place_name):
-    matches = stations_df[stations_df['Station Name(en)'].str.contains(place_name.upper(), na=False)]
-    if len(matches) == 0:
-        return None
-    return matches.iloc[0]['Station Code']
+def find_trains_between_cities(city_a_codes, city_b_codes):
+    a_rows = df[df['station_code'].isin(city_a_codes)][['train_number', 'seq', 'station_code', 'day', 'departure']]
+    b_rows = df[df['station_code'].isin(city_b_codes)][['train_number', 'seq', 'station_code', 'day', 'arrival']]
 
-def find_trains(station_a, station_b):
-    a_rows = df[df['station_code'] == station_a][['train_number', 'day', 'departure']]
-    b_rows = df[df['station_code'] == station_b][['train_number', 'day', 'departure']]
     merged = a_rows.merge(b_rows, on='train_number', suffixes=('_a', '_b'))
-    valid = merged[
-        (merged['day_a'] < merged['day_b']) |
-        ((merged['day_a'] == merged['day_b']) & (merged['departure_a'] < merged['departure_b']))
-    ]
-    candidates = valid['train_number'].unique()
-    return [t for t in candidates if validate_train(t)]
 
-def get_route(train_no):
-    train_stops = df[df['train_number'] == train_no].copy()
-    train_stops = train_stops.sort_values(['day', 'departure'])
-    return train_stops[['station_code', 'station_name', 'day', 'arrival', 'departure']]
+    valid = merged[merged['seq_a'] < merged['seq_b']]
+    valid = valid.sort_values('train_number').drop_duplicates('train_number')
 
-if __name__ == "__main__":
-    results = find_trains('MAS', 'SBC')
-    print(results)
-    print(f"Found {len(results)} trains")
+    results = []
+    for _, row in valid.iterrows():
+        train_no = row['train_number']
+        if not validate_train(train_no):
+            continue
+        results.append({
+            "train_no": train_no,
+            "dep_station": row['station_code_a'],
+            "dep_time": row['departure'],
+            "dep_day": int(row['day_a']),
+            "arr_station": row['station_code_b'],
+            "arr_time": row['arrival'],
+            "arr_day": int(row['day_b']),
+        })
+    return results
