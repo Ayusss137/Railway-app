@@ -1,132 +1,589 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
 
-* { box-sizing: border-box; }
 body {
-  font-family: 'IBM Plex Sans', sans-serif;
-  background: #fafafa;
-  color: #1a1a1a;
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 28px 20px 60px;
-  line-height: 1.5;
-}
-.mono { font-family: 'IBM Plex Mono', monospace; }
-
-h1 {
-  font-size: 1.3rem;
-  font-weight: 700;
-  color: #0f2557;
-  letter-spacing: 0.01em;
-  margin-bottom: 2px;
-  border-bottom: 2px solid #0f2557;
-  padding-bottom: 10px;
-}
-.tagline { color: #6b7280; font-size: 0.85rem; margin: 8px 0 20px; }
-h2 {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin: 22px 0 10px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid #e5e5e5;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f8fafc;
+    color: #1e293b;
+    line-height: 1.5;
+    padding: 24px 16px;
+    max-width: 860px;
+    margin: 0 auto;
 }
 
-.search-box { background: #fff; border: 1px solid #d4d4d4; border-radius: 4px; padding: 16px; }
-.search-box form { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
-.search-box label { font-size: 0.68rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; display: block; margin-bottom: 3px; }
-input {
-  font-family: 'IBM Plex Mono', monospace;
-  padding: 10px 12px;
-  border: 1px solid #c4c4c4;
-  border-radius: 4px;
-  font-size: 0.95rem;
-  min-width: 180px;
+/* Home Page UI */
+.home-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
 }
-input:focus { outline: none; border-color: #0f2557; }
-button {
-  font-family: 'IBM Plex Sans', sans-serif;
-  background: #0f2557;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 4px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  cursor: pointer;
-  text-transform: uppercase;
+
+.brand-hero {
+    text-align: center;
+    padding: 20px 0 10px;
 }
-button:hover { background: #1a3a7a; }
 
-.feature-row { display: flex; gap: 1px; margin-top: 20px; background: #e5e5e5; border: 1px solid #e5e5e5; }
-.feature-card { flex: 1; background: #fff; padding: 16px; text-align: left; }
-.feature-icon { display: none; }
-.feature-title { font-weight: 600; font-size: 0.8rem; color: #0f2557; text-transform: uppercase; letter-spacing: 0.03em; }
-.feature-desc { font-size: 0.78rem; color: #6b7280; margin-top: 4px; }
-
-.card, .train-card {
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  padding: 16px 18px;
-  margin-top: 12px;
+.brand-badge {
+    display: inline-block;
+    background: #dbeafe;
+    color: #1e40af;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 8px;
 }
-.train-card.recommended { border-left: 3px solid #b45309; }
-.rec-header { font-size: 0.68rem; font-weight: 700; color: #b45309; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
 
-.train-num { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 1.1rem; color: #0f2557; margin-right: 8px; }
-.train-name { color: #4b5563; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.02em; }
-
-.train-card-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
-.details-link { font-size: 0.78rem; font-weight: 600; color: #0f2557; }
-
-.journey-row { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
-.journey-point { flex: 1; }
-.journey-time { font-family: 'IBM Plex Mono', monospace; font-size: 1.15rem; font-weight: 600; color: #111; }
-.journey-station { font-size: 0.75rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.02em; margin-top: 2px; }
-.journey-line { color: #c4c4c4; font-family: monospace; }
-
-.train-card-meta { display: flex; justify-content: space-between; font-size: 0.78rem; color: #4b5563; border-top: 1px dashed #e0e0e0; padding-top: 8px; margin-top: 8px; font-family: 'IBM Plex Mono', monospace; }
-.delay-tag { font-weight: 600; }
-
-.stat-row { display: flex; gap: 1px; margin: 12px 0; background: #e5e5e5; border: 1px solid #e5e5e5; }
-.stat { flex: 1; background: #fff; padding: 10px 14px; }
-.stat-label { font-size: 0.66rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
-.stat-value { font-family: 'IBM Plex Mono', monospace; font-size: 1.15rem; font-weight: 600; color: #111; margin-top: 2px; }
-
-.verdict-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: none; color: #111; font-weight: 600; font-size: 0.85rem;
-  padding: 0; border-radius: 0;
+.brand-hero h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.03em;
 }
-.verdict-badge::before { content: "●"; font-size: 0.8rem; }
 
-.irctc-btn { display: inline-block; background: #0f2557; color: white !important; padding: 9px 16px; border-radius: 4px; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; margin-top: 10px; margin-right: 8px; text-decoration: none; }
-.irctc-btn:hover { background: #1a3a7a; text-decoration: none; }
+.tagline {
+    color: #64748b;
+    font-size: 0.95rem;
+    margin-top: 6px;
+}
 
-.bar-row { display: flex; align-items: center; gap: 10px; margin: 5px 0; }
-.bar-label { width: 80px; font-size: 0.75rem; color: #6b7280; font-family: 'IBM Plex Mono', monospace; }
-.bar-track { flex: 1; background: #f0f0f0; height: 14px; }
-.bar-fill { height: 100%; }
-.bar-value { width: 70px; text-align: right; font-size: 0.78rem; font-weight: 600; font-family: 'IBM Plex Mono', monospace; }
+.search-card-wrapper {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+}
 
-.timeline-row { display: flex; align-items: center; gap: 10px; padding: 5px 8px; font-family: 'IBM Plex Mono', monospace; }
-.timeline-row.major { background: #f5f6f8; border-left: 2px solid #0f2557; margin: 1px 0; }
-.timeline-row.major:hover { background: #eef0f4; }
-.timeline-row.minor { padding-left: 22px; opacity: 0.75; border-left: 1px dotted #d4d4d4; margin-left: 5px; }
-.timeline-time { width: 55px; font-size: 0.78rem; font-weight: 600; }
-.timeline-dot { display: none; }
-.major-dot, .minor-dot { display: none; }
-.timeline-station { font-size: 0.82rem; font-family: 'IBM Plex Sans', sans-serif; }
-.expand-hint { font-size: 0.65rem; color: #0f2557; margin-left: 6px; font-family: 'IBM Plex Sans', sans-serif; }
+.search-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
 
-.error { background: #fef2f2; color: #991b1b; padding: 8px 12px; border-radius: 4px; border: 1px solid #fecaca; margin-top: 12px; font-size: 0.85rem; }
-.warn-note { background: #fffbeb; color: #92400e; padding: 6px 10px; border-radius: 4px; font-size: 0.78rem; border-left: 2px solid #b45309; }
-a { color: #0f2557; text-decoration: none; }
-a:hover { text-decoration: underline; }
-.back-link { display: inline-block; margin-bottom: 10px; font-size: 0.82rem; }
-.runs-line { color: #4b5563; font-size: 0.82rem; font-family: 'IBM Plex Mono', monospace; }
-small { color: #6b7280; }
-iframe { border: 1px solid #e0e0e0; margin-top: 10px; }
+.search-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 14px;
+}
+
+.search-grid {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+.input-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.input-group label {
+    font-size: 0.725rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #64748b;
+    letter-spacing: 0.04em;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 0.925rem;
+    color: #0f172a;
+    outline: none;
+}
+
+.input-group input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.swap-btn {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+    padding: 9px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1.1rem;
+}
+
+.primary-btn {
+    background: #2563eb;
+    color: #ffffff;
+    border: none;
+    padding: 11px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.primary-btn:hover {
+    background: #1d4ed8;
+}
+
+.secondary-btn {
+    background: #0f172a;
+    color: #ffffff;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 12px;
+}
+
+.search-submit-btn {
+    width: 100%;
+    margin-top: 14px;
+}
+
+.error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #dc2626;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    margin-top: 16px;
+}
+
+/* Common Card Containers */
+.card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.hero-map-card {
+    padding: 16px;
+}
+
+.map-iframe {
+    width: 100%;
+    height: 420px;
+    border: none;
+    border-radius: 8px;
+    margin-top: 12px;
+}
+
+/* Search Results UI Cards (Card Fixes) */
+.results-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 20px 0 16px;
+}
+
+.sort-wrapper select {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+}
+
+.train-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.train-card.recommended {
+    border: 2px solid #2563eb;
+    background: #f8fafc;
+}
+
+.rec-header {
+    background: #2563eb;
+    color: #ffffff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 6px;
+    display: inline-block;
+    margin-bottom: 12px;
+}
+
+.train-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.train-num {
+    font-family: monospace;
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #1e3a8a;
+    background: #dbeafe;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-right: 8px;
+}
+
+.train-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.details-link {
+    color: #2563eb;
+    font-weight: 600;
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.journey-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-top: 1px dashed #e2e8f0;
+    border-bottom: 1px dashed #e2e8f0;
+    margin-bottom: 12px;
+}
+
+.journey-point {
+    flex: 1;
+}
+
+.journey-time {
+    font-size: 1.25rem;
+    font-weight: 700;
+    font-family: monospace;
+}
+
+.journey-station {
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.journey-line {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 16px;
+}
+
+.duration-badge {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-bottom: 4px;
+}
+
+.line-graphic {
+    width: 100%;
+    height: 2px;
+    background: #cbd5e1;
+}
+
+.train-card-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: #475569;
+}
+
+/* Journey Focus Card (Details Page) */
+.journey-hero-card {
+    background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+    color: #ffffff;
+    border: none;
+}
+
+.journey-badge {
+    font-size: 0.775rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: rgba(255, 255, 255, 0.18);
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+}
+
+.journey-main-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.j-label {
+    display: block;
+    font-size: 0.75rem;
+    opacity: 0.85;
+}
+
+.j-time {
+    font-family: monospace;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.journey-arrow-block {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 20px;
+}
+
+.j-duration {
+    font-size: 0.75rem;
+    font-weight: 600;
+    opacity: 0.9;
+    margin-bottom: 4px;
+}
+
+.j-line {
+    width: 100%;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.journey-delay-banner {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 10px 14px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.875rem;
+}
+
+/* Stats Row Grid */
+.stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.stat {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 12px 10px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.stat-label {
+    font-size: 0.725rem;
+    color: #64748b;
+    margin-bottom: 4px;
+}
+
+.stat-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+/* Station Route Timeline */
+.section-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.schedule-tag {
+    font-size: 0.75rem;
+    color: #64748b;
+    background: #f1f5f9;
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+
+.wmt-timeline {
+    display: flex;
+    flex-direction: column;
+    margin-top: 12px;
+}
+
+.wmt-stop {
+    display: flex;
+    align-items: center;
+    position: relative;
+    padding: 8px;
+}
+
+.wmt-node-col {
+    width: 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    align-self: stretch;
+}
+
+.wmt-line-upper, .wmt-line-lower {
+    width: 3px;
+    background: #cbd5e1;
+    flex: 1;
+}
+
+.wmt-stop.is-first .wmt-line-upper,
+.wmt-stop.is-last .wmt-line-lower {
+    visibility: hidden;
+}
+
+.wmt-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 3px solid #94a3b8;
+    z-index: 1;
+}
+
+.wmt-info {
+    flex: 1;
+    padding-left: 12px;
+}
+
+.wmt-station-name {
+    font-size: 0.925rem;
+    font-weight: 600;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+}
+
+.wmt-station-code {
+    font-size: 0.8rem;
+    color: #64748b;
+    font-weight: 400;
+    margin-left: 4px;
+}
+
+.wmt-meta {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.wmt-timing {
+    text-align: right;
+}
+
+.wmt-time {
+    font-size: 0.9rem;
+    font-weight: 700;
+    font-family: monospace;
+    color: #0f172a;
+}
+
+.wmt-delay {
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.text-danger { color: #dc2626; }
+.text-success { color: #16a34a; }
+
+.wmt-stop.is-user-start, .wmt-stop.is-user-end {
+    background: #eff6ff;
+    border-radius: 8px;
+}
+
+.wmt-stop.is-user-start .wmt-dot, .wmt-stop.is-user-end .wmt-dot {
+    background: #2563eb;
+    border-color: #1e3a8a;
+    width: 14px;
+    height: 14px;
+}
+
+.user-tag {
+    font-size: 0.7rem;
+    font-weight: 700;
+    background: #2563eb;
+    color: #ffffff;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 8px;
+}
+
+.train-header-block {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.button-group {
+    display: flex;
+    gap: 8px;
+}
+
+.irctc-btn {
+    background: #1e3a8a;
+    color: #ffffff;
+    padding: 8px 12px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.ixigo-btn {
+    background: #ea580c;
+}
+
+.header-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.back-link {
+    color: #2563eb;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.route-subtitle {
+    font-size: 0.875rem;
+    color: #475569;
+}
+
+.helper-text {
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+@media (max-width: 680px) {
+    .search-card-wrapper {
+        grid-template-columns: 1fr;
+    }
+    .stat-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .train-header-block {
+        flex-direction: column;
+        gap: 12px;
+    }
+}
