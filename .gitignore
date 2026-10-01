@@ -2,3 +2,4 @@ venv/
 snapshots/
 __pycache__/
 *.pyc
+.env

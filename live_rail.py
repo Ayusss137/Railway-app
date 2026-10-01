@@ -1,7 +1,7 @@
 import requests
+import os
 
-# Get this from your RapidAPI Dashboard
-API_KEY = "YOUR_RAPIDAPI_KEY_HERE"
+API_KEY = os.environ.get("RAPIDAPI_KEY")
 
 def get_live_status(train_no):
     """
