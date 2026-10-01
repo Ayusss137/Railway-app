@@ -1,7 +1,7 @@
 from flask import Flask, request, render_template_string, redirect
 from concurrent.futures import ThreadPoolExecutor
 from live_rail import get_live_status
-
+import os
 from train_data import (
     CITY_CENTERS, trains_df, HERO_TRAIN,
     is_curated_city, get_city_station_codes, get_train_info, get_station_name,
@@ -11,7 +11,7 @@ from train_data import (
 )
 
 app = Flask(__name__)
-
+os.makedirs("snapshots", exist_ok=True)
 STYLE = '<link rel="stylesheet" href="/static/style.css">'
 
 SWAP_SCRIPT = """
