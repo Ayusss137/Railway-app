@@ -1,3 +1,4 @@
+
 from flask import Flask, request, render_template_string, redirect
 from concurrent.futures import ThreadPoolExecutor
 from live_rail import get_live_status
@@ -6,12 +7,11 @@ from train_data import (
     CITY_CENTERS, trains_df, HERO_TRAIN,
     is_curated_city, get_city_station_codes, get_train_info, get_station_name,
     get_quick_delay, get_train_history, get_delay_stats,
-    get_route_timeline, build_delay_bars, get_delay_verdict, build_route_map,
+    get_route_timeline, build_delay_bars, get_delay_verdict, get_map_html,
     find_trains_between_cities,
 )
 
-app = Flask(__name__)
-os.makedirs("snapshots", exist_ok=True)
+app = Flask(__name__, static_folder="public/static")
 STYLE = '<link rel="stylesheet" href="/static/style.css">'
 
 SWAP_SCRIPT = """
@@ -85,8 +85,7 @@ HOME_PAGE = STYLE + """
             </div>
             <a href="/train/{{ hero_train }}" class="details-link">Full Stats &rarr;</a>
         </div>
-        <iframe src="/{{ hero_map_path }}" class="map-iframe"></iframe>
-    </div>
+        <iframe src="{{ hero_map_path }}" class="map-iframe"></iframe>    </div>
     {% endif %}
 </div>
 """ + SWAP_SCRIPT
@@ -291,8 +290,7 @@ TRAIN_PAGE = STYLE + """
         <h2>Interactive Route Map</h2>
         <span class="schedule-tag">Whole Train Route</span>
     </div>
-    <iframe src="/{{ map_path }}" class="map-iframe"></iframe>
-</div>
+    <iframe src="{{ map_path }}" class="map-iframe"></iframe></div>
 {% endif %}
 
 <!-- SECTION 5: STATION ROUTE TIMELINE -->
@@ -348,7 +346,7 @@ TRAIN_PAGE = STYLE + """
 @app.route("/", methods=["GET", "POST"])
 def home():
     if request.method == "GET":
-        hero_map_path = build_route_map(HERO_TRAIN)
+        hero_map_path = f"/map/{HERO_TRAIN}"
         hero_info = get_train_info(HERO_TRAIN)
         lookup_error = request.args.get("error") == "train_not_found"
         return render_template_string(
@@ -423,7 +421,7 @@ def train_detail(train_no):
     # 1. Fetch local dataset information
     summary = get_train_history(train_no)
     info = get_train_info(train_no)
-    map_path = build_route_map(train_no)
+    map_path = f"/map/{train_no}"
     route_timeline = get_route_timeline(train_no)
     stats = get_delay_stats(summary.get("individual_delays", []))
 
@@ -473,6 +471,22 @@ def train_detail(train_no):
         stats=stats,
         live_data=live_data
     )
+
+@app.route("/map/<train_no>")
+def route_map(train_no):
+    if not train_no.isdigit() or len(train_no) > 6:
+        return "Invalid train number", 400
+
+    html = get_map_html(train_no)
+
+    if not html:
+        return "<p style='font-family:sans-serif;padding:16px'>Route map unavailable.</p>", 404
+
+    return html, 200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=300"
+    }
+
 
 @app.route("/train/lookup")
 def train_lookup():

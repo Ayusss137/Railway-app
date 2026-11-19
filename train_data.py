@@ -1,3 +1,4 @@
+
 import pandas as pd
 import folium
 from folium.plugins import AntPath, Fullscreen, MiniMap
@@ -7,12 +8,15 @@ import statistics
 from datetime import datetime, timedelta
 from math import radians, sin, cos, sqrt, atan2
 from functools import lru_cache
+from pathlib import Path
 from journey_history import get_train_summary, get_last_n_rides, client
 from find_alternative import find_trains_between_cities
 
-stations = pd.read_csv("indian_stations.csv").set_index("Station Code")
-trains_df = pd.read_csv("trains_new.csv", dtype={"number": str}).set_index("number")
-stops_df = pd.read_csv("stops_new.csv", dtype={"train_number": str})
+BASE_DIR = Path(__file__).resolve().parent
+
+stations = pd.read_csv(BASE_DIR / "indian_stations.csv").set_index("Station Code")
+trains_df = pd.read_csv(BASE_DIR / "trains_new.csv", dtype={"number": str}).set_index("number")
+stops_df = pd.read_csv(BASE_DIR / "stops_new.csv", dtype={"train_number": str})
 station_train_counts = stops_df.groupby("station_code")["train_number"].nunique()
 
 HERO_TRAIN = "12658"
@@ -97,7 +101,7 @@ def get_quick_delay(train_no):
 @lru_cache(maxsize=256)
 def get_train_history(train_no):
     summary = get_train_summary(train_no)
-    if summary["journeys"] == 0:
+    if summary["journeys"] == 0 and not os.environ.get("VERCEL"):
         rides = get_last_n_rides(train_no, n=7)
         delays = [r["delay"] for r in rides if r["delay"] is not None]
         summary = {
@@ -122,19 +126,30 @@ def get_delay_stats(delays):
     }
 
 
+@lru_cache(maxsize=256)
 def get_train_coords(train_no):
-    files = sorted(f for f in os.listdir("snapshots") if f.startswith(train_no))
-    if files:
-        with open(f"snapshots/{files[-1]}") as f:
-            return json.load(f).get("STNS")
-    for days_back in range(0, 8):
-        date = (datetime.now() - timedelta(days=days_back)).strftime("%d-%b-%Y")
-        try:
-            data = client.live_status(train_no, date)
-            if "STNS" in data:
-                return data["STNS"]
-        except Exception:
-            continue
+    """Prefer bundled timetable data, avoiding slow network calls on page loads."""
+    train_no = str(train_no)
+    snapshot_dir = BASE_DIR / "snapshots"
+    if snapshot_dir.is_dir():
+        files = sorted(f for f in snapshot_dir.iterdir() if f.is_file() and f.name.startswith(train_no) and f.suffix == ".json")
+        if files:
+            try:
+                with files[-1].open() as f:
+                    stns = json.load(f).get("STNS")
+                if stns:
+                    return stns
+            except (OSError, ValueError):
+                pass
+
+    rows = stops_df.loc[stops_df["train_number"] == train_no].sort_values("seq")
+    if not rows.empty:
+        return [
+            {"SC": row.station_code, "SN": row.station_name,
+             "STA": row.arrival if pd.notna(row.arrival) else None,
+             "STD": row.departure if pd.notna(row.departure) else None}
+            for row in rows.itertuples(index=False)
+        ]
     return None
 
 
@@ -187,7 +202,8 @@ def get_delay_verdict(delays):
     return label, color, sentence
 
 
-def build_route_map(train_no):
+@lru_cache(maxsize=64)
+def get_map_html(train_no):
     stns = get_train_coords(train_no)
     if not stns:
         return None
@@ -215,7 +231,9 @@ def build_route_map(train_no):
     m.fit_bounds(coords, padding=(30, 30))
     Fullscreen(position="topright").add_to(m)
     MiniMap(toggle_display=True, position="bottomleft").add_to(m)
-    os.makedirs("static", exist_ok=True)
-    map_path = f"static/map_{train_no}.html"
-    m.save(map_path)
-    return map_path
+    return m.get_root().render()
+
+
+def build_route_map(train_no):
+    """Backward-compatible URL helper; map HTML is generated on request."""
+    return f"/map/{train_no}"

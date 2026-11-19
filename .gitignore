@@ -1,5 +1,9 @@
+
 venv/
-snapshots/
+.venv/
+snapshots/*
+!snapshots/.gitkeep
 __pycache__/
 *.pyc
 .env
+static/map_*.html

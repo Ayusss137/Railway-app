@@ -1,3 +1,4 @@
+
 import json
 import os
 from datetime import datetime, timedelta
@@ -7,12 +8,13 @@ from ntes import NTESClient
 client = NTESClient()
 
 def get_all_arrived_snapshots(train_no):
-    files = sorted(f for f in os.listdir("snapshots") if f.startswith(train_no))
+    snapshot_dir = os.path.join(os.path.dirname(__file__), "snapshots")
+    files = sorted(f for f in os.listdir(snapshot_dir) if f.startswith(str(train_no)) and f.endswith(".json")) if os.path.isdir(snapshot_dir) else []
     arrived = []
     for filename in files:
-        with open(f"snapshots/{filename}") as f:
+        with open(os.path.join(snapshot_dir, filename)) as f:
             data = json.load(f)
-        if "Arrived at PURATCHI" in data["CPOS"] or "MAS" in data["CPOS"]:
+        if "Arrived at PURATCHI" in data.get("CPOS", "") or "MAS" in data.get("CPOS", ""):
             arrived.append(data["CPOS"])
     return arrived
 
