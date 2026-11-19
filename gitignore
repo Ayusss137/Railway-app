@@ -1,0 +1,20 @@
+# environments
+venv/
+.venv/
+.env
+
+# python
+__pycache__/
+*.pyc
+
+# vercel / os
+.vercel/
+.DS_Store
+
+# poller output (keep the folder so reads don't crash)
+snapshots/*
+!snapshots/.gitkeep
+
+# generated maps
+static/map_*.html
+public/static/map_*.html
