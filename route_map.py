@@ -2,14 +2,13 @@ import pandas as pd
 stations = pd.read_csv("indian_stations.csv")
 
 import json
-with open("snapshots/snapshot_20260819_181934.json") as route_ma:  # use any real filename you have
+with open("snapshots/snapshot_20260819_181934.json") as route_ma:
     data = json.load(route_ma)
 
 route_codes = [stop["SC"] for stop in data["STNS"]]
 print(route_codes)
 
-stations_indexed = stations.set_index("Station Code")  # set the index to the station code
-
+stations_indexed = stations.set_index("Station Code")
 coords = []
 for code in route_codes:
     try:

@@ -1,347 +1,356 @@
-
-from flask import Flask, request, render_template_string, redirect
-from concurrent.futures import ThreadPoolExecutor
-from live_rail import get_live_status
 import os
+from pathlib import Path
+from dotenv import load_dotenv
+from flask import Flask, request, render_template_string, redirect
+
+# Load .env so Supabase credentials are always found
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
+
+from history_store import get_delay_summaries
+from live_rail import get_live_status
 from train_data import (
     CITY_CENTERS, trains_df, HERO_TRAIN,
     is_curated_city, get_city_station_codes, get_train_info, get_station_name,
-    get_quick_delay, get_train_history, get_delay_stats,
-    get_route_timeline, build_delay_bars, get_delay_verdict, get_map_html,
+    get_route_timeline, get_map_html,
     find_trains_between_cities,
 )
 
 app = Flask(__name__, static_folder="public/static")
-STYLE = '<link rel="stylesheet" href="/static/style.css">'
+
+# ==============================================================================
+# CLEAN MODERN RAILWAY STYLES
+# ==============================================================================
+STYLE = """
+<style>
+:root {
+    --primary: #1e3a8a;
+    --primary-light: #3b82f6;
+    --bg: #f8fafc;
+    --card-bg: #ffffff;
+    --border: #e2e8f0;
+    --text-dark: #0f172a;
+    --text-muted: #64748b;
+    --success: #15803d;
+    --success-bg: #dcfce7;
+    --danger: #b91c1c;
+    --danger-bg: #fee2e2;
+    --warning: #b45309;
+    --warning-bg: #fef3c7;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+body { background: var(--bg); color: var(--text-dark); line-height: 1.5; padding-bottom: 60px; }
+.container { max-width: 900px; margin: 0 auto; padding: 20px 16px; }
+
+/* Headers & Nav */
+.header-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.header-nav h1 { font-size: 1.4rem; font-weight: 700; color: var(--primary); }
+.back-link { color: var(--primary-light); text-decoration: none; font-size: 0.9rem; font-weight: 600; }
+.back-link:hover { text-decoration: underline; }
+
+/* Cards & Forms */
+.card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.search-grid { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.input-group { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 4px; }
+.input-group label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+input { padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; }
+input:focus { outline: none; border-color: var(--primary-light); }
+.swap-btn { padding: 10px 14px; background: #e2e8f0; border: none; border-radius: 6px; cursor: pointer; font-size: 1.1rem; }
+.primary-btn { padding: 10px 20px; background: var(--primary); color: #fff; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; }
+.primary-btn:hover { background: #1e40af; }
+
+/* Train Cards */
+.results-header { display: flex; justify-content: space-between; align-items: center; margin: 24px 0 12px; }
+.train-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 14px; position: relative; transition: border-color 0.2s; }
+.train-card.recommended { border: 2px solid #22c55e; }
+.rec-pill { position: absolute; top: -11px; left: 16px; background: #15803d; color: #fff; font-size: 0.72rem; font-weight: 700; padding: 2px 10px; border-radius: 20px; letter-spacing: 0.5px; }
+
+.train-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+.train-num { font-size: 1.15rem; font-weight: 800; color: var(--primary); margin-right: 8px; }
+.train-name { font-weight: 600; color: var(--text-dark); font-size: 1.05rem; }
+
+/* Journey Times */
+.journey-row { display: flex; align-items: center; justify-content: space-between; background: #f1f5f9; border-radius: 8px; padding: 12px 16px; margin: 12px 0; }
+.time-col { min-width: 90px; }
+.time-val { font-size: 1.3rem; font-weight: 800; color: var(--text-dark); }
+.stn-val { font-size: 0.82rem; color: var(--text-muted); font-weight: 500; }
+.duration-col { flex: 1; text-align: center; padding: 0 16px; position: relative; }
+.duration-text { font-size: 0.85rem; font-weight: 700; color: var(--primary); background: #e2e8f0; padding: 2px 8px; border-radius: 10px; display: inline-block; }
+.duration-line { height: 2px; background: #cbd5e1; margin-top: 6px; position: relative; }
+
+/* Delay Badges */
+.train-bottom { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.85rem; }
+.delay-badge { padding: 4px 10px; border-radius: 6px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+.delay-ok { background: var(--success-bg); color: var(--success); }
+.delay-warn { background: var(--warning-bg); color: var(--warning); }
+.delay-late { background: var(--danger-bg); color: var(--danger); }
+.delay-none { background: #f1f5f9; color: var(--text-muted); }
+
+/* Map */
+.map-iframe { width: 100%; height: 380px; border: none; border-radius: 8px; }
+</style>
+<link rel="stylesheet" href="/static/style.css">
+"""
 
 SWAP_SCRIPT = """
 <script>
 function swapCities() {
     const a = document.querySelector('input[name="city_a"]');
     const b = document.querySelector('input[name="city_b"]');
-    [a.value, b.value] = [b.value, a.value];
+    if (a && b) { [a.value, b.value] = [b.value, a.value]; }
 }
 </script>
 """
 
 # ==============================================================================
-# PRETTY & USABLE FRONT PAGE
+# HOME PAGE
 # ==============================================================================
 HOME_PAGE = STYLE + """
-<div class="home-container">
-    <div class="brand-hero">
-
-        <h1>Find The Best Train For You</h1>
-        <p class="tagline">Search trains between stations or track delay history and live maps in one click.</p>
-    </div>
-
-    <div class="search-card-wrapper">
-        <div class="card search-card">
-            <h3 class="search-title">Find Trains Between Stations</h3>
-            <form method="post" action="/">
-                <div class="search-grid">
-                    <div class="input-group">
-                        <label>From Station / City</label>
-                        <input name="city_a" placeholder="e.g. Mumbai (LTT)" list="city-list" autocomplete="off" required>
-                    </div>
-
-                    <button type="button" class="swap-btn" onclick="swapCities()" title="Swap origin & destination">&#8646;</button>
-
-                    <div class="input-group">
-                        <label>To Station / City</label>
-                        <input name="city_b" placeholder="e.g. Haridwar (HW)" list="city-list" autocomplete="off" required>
-                    </div>
-                </div>
-
-                <button type="submit" class="primary-btn search-submit-btn">Search Trains &rarr;</button>
-                <datalist id="city-list">
-                {% for c in city_names %}<option value="{{ c.title() }}">{% endfor %}
-                </datalist>
-            </form>
-        </div>
-
-        <div class="card search-card direct-track-card">
-            <h3 class="search-title">Direct Train Lookup</h3>
-            <form method="get" action="/train/lookup">
+<div class="container">
+    <div class="card" style="text-align:center; padding: 32px 20px;">
+        <h1 style="color:var(--primary); font-size:2rem; margin-bottom:8px;">Know Your Train</h1>
+        <p style="color:var(--text-muted); margin-bottom:24px;">Check station-to-station trains with genuine 30-day historical delay data.</p>
+        <form method="post" action="/">
+            <div class="search-grid" style="justify-content:center;">
                 <div class="input-group">
-                    <label>Train Number or Name</label>
-                    <input name="train_no" placeholder="e.g. 12171 or LTT HW AC EXP" required>
+                    <label>From Station / City</label>
+                    <input name="city_a" placeholder="e.g. Udupi" list="city-list" required>
                 </div>
-                <button type="submit" class="secondary-btn track-submit-btn">Track Train</button>
-            </form>
-        </div>
+                <button type="button" class="swap-btn" onclick="swapCities()" title="Swap stations">&#8646;</button>
+                <div class="input-group">
+                    <label>To Station / City</label>
+                    <input name="city_b" placeholder="e.g. Goa (Madgaon)" list="city-list" required>
+                </div>
+                <button type="submit" class="primary-btn">Search Trains &rarr;</button>
+            </div>
+            <datalist id="city-list">
+            {% for c in city_names %}<option value="{{ c.title() }}">{% endfor %}
+            </datalist>
+        </form>
     </div>
 
-    {% if lookup_error %}
-        <p class="error">Train not found. Please double-check the train number or name.</p>
-    {% endif %}
+    <div class="card">
+        <h3 style="margin-bottom:12px; font-size:1rem; color:var(--text-muted);">Direct Train Punctuality Lookup</h3>
+        <form method="get" action="/train/lookup" style="display:flex; gap:10px;">
+            <input name="train_no" placeholder="Enter Train No. e.g. 12658" required style="flex:1;">
+            <button type="submit" class="primary-btn" style="background:#475569;">Check Punctuality</button>
+        </form>
+        {% if lookup_error %}<p style="color:var(--danger); font-size:0.85rem; margin-top:8px;">Train number not found.</p>{% endif %}
+    </div>
 
     {% if hero_map_path %}
-    <div class="card hero-map-card">
-        <div class="section-title-row">
-            <div>
-                <h2>Featured Route Tracking: Train {{ hero_train }}</h2>
-                <p class="helper-text">{% if hero_info %}{{ hero_info.name }}{% endif %}</p>
-            </div>
-            <a href="/train/{{ hero_train }}" class="details-link">Full Stats &rarr;</a>
-        </div>
-        <iframe src="{{ hero_map_path }}" class="map-iframe"></iframe>    </div>
+    <div class="card">
+        <h3 style="margin-bottom:12px; font-size:1.1rem; color:var(--primary);">Featured Route Map: Train {{ hero_train }}</h3>
+        <iframe src="{{ hero_map_path }}" class="map-iframe"></iframe>
+    </div>
     {% endif %}
 </div>
 """ + SWAP_SCRIPT
-
 
 # ==============================================================================
 # SEARCH RESULTS PAGE
 # ==============================================================================
 RESULTS_PAGE = STYLE + """
-<div class="header-nav">
-    <a class="back-link" href="/">&larr; New Search</a>
-    <h1>Train Options: {{ city_a.title() }} &rarr; {{ city_b.title() }}</h1>
-</div>
-
-<div class="card search-card inline-search">
-    <form method="post" id="search-form">
-        <div class="search-grid">
-            <div class="input-group">
-                <label>From</label>
-                <input name="city_a" value="{{ city_a }}">
-            </div>
-            <button type="button" class="swap-btn" onclick="swapCities()">&#8646;</button>
-            <div class="input-group">
-                <label>To</label>
-                <input name="city_b" value="{{ city_b }}">
-            </div>
-            <button type="submit" class="primary-btn">Update</button>
-        </div>
-    </form>
-</div>
-""" + SWAP_SCRIPT + """
-
-{% if error %}<p class="error">{{ error }}</p>{% endif %}
-
-{% if results is not none %}
-    <div class="results-toolbar">
-        <h2>{{ results|length }} trains available</h2>
-        <div class="sort-wrapper">
-            <label for="sort_by">Sort by:</label>
-            <select name="sort_by" id="sort_by" onchange="document.getElementById('search-form').submit()">
-                <option value="delay" {% if sort_by == 'delay' %}selected{% endif %}>Lowest Delay</option>
-                <option value="duration" {% if sort_by == 'duration' %}selected{% endif %}>Shortest Duration</option>
-                <option value="departure" {% if sort_by == 'departure' %}selected{% endif %}>Earliest Departure</option>
-            </select>
-        </div>
+<div class="container">
+    <div class="header-nav">
+        <a class="back-link" href="/">&larr; New Search</a>
+        <h1>{{ city_a.title() }} &rarr; {{ city_b.title() }}</h1>
     </div>
 
-    {% for r in results %}
-    <div class="train-card {% if r.is_recommended %}recommended{% endif %}">
-        {% if r.is_recommended %}
-        <div class="rec-header">&#9733; RECOMMENDED &middot; {{ r.reason }}</div>
-        {% endif %}
-        <div class="train-card-top">
+    <div class="card" style="padding:14px;">
+        <form method="post" id="search-form">
+            <div class="search-grid">
+                <div class="input-group">
+                    <label>From</label>
+                    <input name="city_a" value="{{ city_a }}">
+                </div>
+                <button type="button" class="swap-btn" onclick="swapCities()">&#8646;</button>
+                <div class="input-group">
+                    <label>To</label>
+                    <input name="city_b" value="{{ city_b }}">
+                </div>
+                <button type="submit" class="primary-btn">Update</button>
+            </div>
+        </form>
+    </div>
+
+    {% if error %}<div class="card" style="color:var(--danger)">{{ error }}</div>{% endif %}
+
+    {% if results is not none %}
+        <div class="results-header">
+            <h2 style="font-size:1.1rem; font-weight:700;">{{ results|length }} Trains Available</h2>
             <div>
-                <span class="train-num">{{ r.train_no }}</span>
-                <span class="train-name">{{ r.name }}</span>
-            </div>
-            <a class="details-link" href="/train/{{ r.train_no }}?from={{ city_a }}&to={{ city_b }}">View Details &rarr;</a>
-        </div>
-        <div class="journey-row">
-            <div class="journey-point">
-                <div class="journey-time">{{ r.dep_time }}</div>
-                <div class="journey-station">{{ r.dep_station_name }} ({{ r.dep_station }})</div>
-            </div>
-            <div class="journey-line">
-                <span class="duration-badge">{{ r.duration_h }}h {{ r.duration_m }}m</span>
-                <div class="line-graphic"></div>
-            </div>
-            <div class="journey-point" style="text-align: right;">
-                <div class="journey-time">{{ r.arr_time }}{% if r.arr_day > r.dep_day %} <span class="day-offset">+{{ r.arr_day - r.dep_day }}d</span>{% endif %}</div>
-                <div class="journey-station">{{ r.arr_station_name }} ({{ r.arr_station }})</div>
+                <label style="font-size:0.85rem; font-weight:600; color:var(--text-muted);">Sort by: </label>
+                <select name="sort_by" onchange="document.getElementById('search-form').submit()" style="padding:4px 8px; border-radius:4px;">
+                    <option value="delay" {% if sort_by == 'delay' %}selected{% endif %}>Lowest Delay</option>
+                    <option value="duration" {% if sort_by == 'duration' %}selected{% endif %}>Shortest Duration</option>
+                    <option value="departure" {% if sort_by == 'departure' %}selected{% endif %}>Earliest Departure</option>
+                </select>
             </div>
         </div>
-        <div class="train-card-meta">
-            <span>Runs: <strong>{{ r.runs_days }}</strong></span>
-            <span class="delay-tag">
-                {% if r.average_delay is not none %}
-                    Avg Delay: <strong>{{ r.average_delay }} mins</strong>
-                {% else %}
-                    No delay history recorded
-                {% endif %}
-            </span>
-        </div>
-    </div>
-    {% endfor %}
-{% endif %}
-"""
 
+        {% for r in results %}
+        <div class="train-card {% if r.is_recommended %}recommended{% endif %}">
+            {% if r.is_recommended %}
+                <span class="rec-pill">&#9733; RECOMMENDED &middot; {{ r.reason }}</span>
+            {% endif %}
+            <div class="train-top">
+                <div>
+                    <span class="train-num">{{ r.train_no }}</span>
+                    <span class="train-name">{{ r.name }}</span>
+                </div>
+                <a class="back-link" href="/train/{{ r.train_no }}?from={{ city_a }}&to={{ city_b }}">View Route &rarr;</a>
+            </div>
+
+            <!-- Accurate Segment Journey Times -->
+            <div class="journey-row">
+                <div class="time-col">
+                    <div class="time-val">{{ r.dep_time }}</div>
+                    <div class="stn-val">{{ r.dep_station_name }} ({{ r.dep_station }})</div>
+                </div>
+                <div class="duration-col">
+                    <span class="duration-text">{{ r.duration_h }}h {{ r.duration_m }}m</span>
+                    <div class="duration-line"></div>
+                </div>
+                <div class="time-col" style="text-align:right;">
+                    <div class="time-val">{{ r.arr_time }}{% if r.arr_day > r.dep_day %} <small style="font-size:0.75rem; color:var(--primary-light);">+{{ r.arr_day - r.dep_day }}d</small>{% endif %}</div>
+                    <div class="stn-val">{{ r.arr_station_name }} ({{ r.arr_station }})</div>
+                </div>
+            </div>
+
+            <!-- Historical Delay Badge -->
+            <div class="train-bottom">
+                <span style="color:var(--text-muted)">Runs: <strong>{{ r.runs_days }}</strong></span>
+                <div>
+                    {% if r.average_delay is not none %}
+                        {% if r.average_delay == 0 %}
+                            <span class="delay-badge delay-ok">Avg delay: 0 min (On Time &middot; {{ r.journeys }} recorded journeys)</span>
+                        {% elif r.average_delay <= 15 %}
+                            <span class="delay-badge delay-warn">Avg delay: {{ r.average_delay }} min ({{ r.journeys }} recorded journeys)</span>
+                        {% else %}
+                            <span class="delay-badge delay-late">Avg delay: {{ r.average_delay }} min ({{ r.journeys }} recorded journeys)</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="delay-badge delay-none">No delay history available</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
+</div>
+""" + SWAP_SCRIPT
 
 # ==============================================================================
-# TRAIN DETAILS PAGE (STRICT SECTION ORDER)
+# TRAIN DETAILS & MAP PAGE
 # ==============================================================================
 TRAIN_PAGE = STYLE + """
-<div class="header-nav">
-    <a class="back-link" href="/">&larr; Home</a>
-    {% if from_city and to_city %}
-        <span class="nav-separator">/</span>
-        <a class="back-link" href="javascript:history.back()">Back to Search Results</a>
-    {% endif %}
-</div>
-
-<!-- SECTION 1: YOUR SPECIFIC JOURNEY (Point A to Point B Focus) -->
-{% if segment_info %}
-<div class="card journey-hero-card">
-    <div class="journey-badge">Your Specific Journey: {{ from_city.title() }} &rarr; {{ to_city.title() }}</div>
-
-    <div class="journey-main-row">
-        <div class="journey-time-block">
-            <span class="j-label">Departs {{ segment_info.dep_station }}</span>
-            <span class="j-time">{{ segment_info.dep_time }}</span>
-        </div>
-
-        <div class="journey-arrow-block">
-            <span class="j-duration">{{ segment_info.duration_h }}h {{ segment_info.duration_m }}m</span>
-            <div class="j-line"></div>
-        </div>
-
-        <div class="journey-time-block" style="text-align: right;">
-            <span class="j-label">Arrives {{ segment_info.arr_station }}</span>
-            <span class="j-time">{{ segment_info.arr_time }}</span>
-        </div>
-    </div>
-
-    <div class="journey-delay-banner">
-        {% if summary.average_delay is not none %}
-            <span>Expected Delay for your leg: <strong>~{{ summary.average_delay }} mins</strong></span>
-        {% else %}
-            <span>No delay history recorded for this segment.</span>
+<div class="container">
+    <div class="header-nav">
+        <a class="back-link" href="/">&larr; Home</a>
+        {% if from_city and to_city %}
+            <span style="color:var(--text-muted)">/</span>
+            <a class="back-link" href="javascript:history.back()">Back to Search</a>
         {% endif %}
-        <small class="disclaimer-text">Based on historical run trends (Past data)</small>
     </div>
-</div>
-{% endif %}
 
-<!-- SECTION 2: WHOLE TRAIN JOURNEY OVERVIEW -->
-<div class="card">
-    <div class="train-header-block">
-        <div>
-            <span class="train-num">{{ summary.train_no }}</span>
-            <h1 class="train-title" style="display:inline-block;">{% if info %}{{ info.name }}{% endif %}</h1>
-            <p class="route-subtitle" style="margin-top:4px;">
-                Whole Route: <strong>{{ info.from_station_name }} ({{ info.from_station_code }}) &rarr; {{ info.to_station_name }} ({{ info.to_station_code }})</strong>
-            </p>
-            <p class="runs-line">Operating Days: <strong>{{ info.runs_days if info else 'N/A' }}</strong> &middot; Total Distance: <strong>{{ info.distance }} km</strong></p>
-        </div>
-        <div class="button-group">
-            <a class="irctc-btn" href="https://www.irctc.co.in/nget/train-search" target="_blank">IRCTC Seats</a>
-            <a class="irctc-btn ixigo-btn" href="https://www.ixigo.com/trains/train-name-number-search?q={{ summary.train_no }}" target="_blank">ixigo Live Status</a>
-        </div>
-    </div>
-</div>
-
-<!-- LIVE RUNNING STATUS CARD (INSERTED HERE) -->
-<div class="card" style="border-left: 4px solid #2563eb;">
-    <div class="section-title-row">
-        <h2>Live Running Status</h2>
-        <span class="schedule-tag" style="background:#dbeafe; color:#1e40af; font-weight:700;">REAL-TIME</span>
-    </div>
-    {% if live_data %}
-        <div class="stat-row" style="margin-top:12px;">
-            <div class="stat">
-                <div class="stat-label">Current Location</div>
-                <div class="stat-value" style="font-size:0.95rem;">{{ summary.current_station }}</div>
+    <!-- Segment Highlight (if searched from a route) -->
+    {% if segment_info %}
+    <div class="card" style="border-left: 4px solid var(--primary-light);">
+        <div style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Your Leg: {{ from_city.title() }} &rarr; {{ to_city.title() }}</div>
+        <div class="journey-row" style="background:transparent; padding:8px 0 0;">
+            <div class="time-col">
+                <div class="time-val">{{ segment_info.dep_time }}</div>
+                <div class="stn-val">{{ segment_info.dep_station }}</div>
             </div>
-            <div class="stat">
-                <div class="stat-label">Current Delay</div>
-                <div class="stat-value {% if summary.live_delay and summary.live_delay > 0 %}text-danger{% else %}text-success{% endif %}">
-                    {% if summary.live_delay %}{{ summary.live_delay }} min{% else %}On Time{% endif %}
+            <div class="duration-col">
+                <span class="duration-text">{{ segment_info.duration_h }}h {{ segment_info.duration_m }}m</span>
+                <div class="duration-line"></div>
+            </div>
+            <div class="time-col" style="text-align:right;">
+                <div class="time-val">{{ segment_info.arr_time }}</div>
+                <div class="stn-val">{{ segment_info.arr_station }}</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Train Overview -->
+    <div class="card">
+        <div class="train-top">
+            <div>
+                <span class="train-num">{{ summary.train_no }}</span>
+                <span class="train-name">{% if info %}{{ info.name }}{% endif %}</span>
+                <p style="color:var(--text-muted); font-size:0.9rem; margin-top:4px;">
+                    Full Route: <strong>{{ info.from_station_name }} ({{ info.from_station_code }}) &rarr; {{ info.to_station_name }} ({{ info.to_station_code }})</strong>
+                </p>
+                <p style="color:var(--text-muted); font-size:0.85rem; margin-top:2px;">
+                    Days: <strong>{{ info.runs_days if info else 'N/A' }}</strong> &middot; Distance: <strong>{{ info.distance }} km</strong>
+                </p>
+            </div>
+            <div style="display:flex; gap:8px;">
+                <a class="primary-btn" href="https://www.irctc.co.in/nget/train-search" target="_blank" style="text-decoration:none; font-size:0.85rem; padding:6px 12px;">IRCTC</a>
+                <a class="primary-btn" href="https://www.ixigo.com/trains/train-name-number-search?q={{ summary.train_no }}" target="_blank" style="text-decoration:none; font-size:0.85rem; padding:6px 12px; background:#e11d48;">ixigo</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 30-Day Historical Punctuality Stats -->
+    <div class="card">
+        <h3 style="font-size:1.05rem; font-weight:700; color:var(--text-dark); margin-bottom:12px;">30-Day Historical Punctuality (NTES Verified)</h3>
+        {% if stats %}
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:12px; text-align:center;">
+            <div style="background:#f1f5f9; padding:12px; border-radius:8px;">
+                <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">AVG DELAY</div>
+                <div style="font-size:1.3rem; font-weight:800; color:var(--primary);">{{ stats.average }} min</div>
+            </div>
+            <div style="background:#f1f5f9; padding:12px; border-radius:8px;">
+                <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">MAX DELAY</div>
+                <div style="font-size:1.3rem; font-weight:800; color:var(--danger);">{{ stats.maximum }} min</div>
+            </div>
+            <div style="background:#f1f5f9; padding:12px; border-radius:8px;">
+                <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">ON-TIME RATE</div>
+                <div style="font-size:1.3rem; font-weight:800; color:var(--success);">{{ stats.on_time_pct }}%</div>
+            </div>
+            <div style="background:#f1f5f9; padding:12px; border-radius:8px;">
+                <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">JOURNEYS</div>
+                <div style="font-size:1.3rem; font-weight:800; color:var(--text-dark);">{{ summary.journeys }}</div>
+            </div>
+        </div>
+        {% else %}
+        <p style="color:var(--text-muted); font-size:0.9rem;">No delay history available for this train in the last 30 days.</p>
+        {% endif %}
+    </div>
+
+    <!-- Map Section (In-Memory Folium) -->
+    {% if map_path %}
+    <div class="card">
+        <h3 style="font-size:1.05rem; font-weight:700; color:var(--text-dark); margin-bottom:12px;">Route Map</h3>
+        <iframe src="{{ map_path }}" class="map-iframe"></iframe>
+    </div>
+    {% endif %}
+
+    <!-- Station Timeline -->
+    {% if route_timeline %}
+    <div class="card">
+        <h3 style="font-size:1.05rem; font-weight:700; color:var(--text-dark); margin-bottom:12px;">Timetable & Stops</h3>
+        <div style="font-size:0.9rem;">
+        {% for stop in route_timeline %}
+            <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f1f5f9;">
+                <div>
+                    <strong>{{ stop.name }}</strong> <span style="color:var(--text-muted)">({{ stop.code }})</span>
                 </div>
+                <div><strong>{{ stop.time }}</strong></div>
             </div>
-            <div class="stat" style="grid-column: span 2;">
-                <div class="stat-label">Live Status</div>
-                <div class="stat-value" style="font-size:0.95rem;">{{ summary.live_status }}</div>
-            </div>
+        {% endfor %}
         </div>
-    {% else %}
-        <p class="helper-text" style="margin-top:8px;">Live API data currently unavailable. Showing historical statistics below.</p>
+    </div>
     {% endif %}
 </div>
-
-<!-- SECTION 3: RECORDED DELAY HISTORY & PUNCTUALITY STATS -->
-<div class="card">
-    <h2>Delay History & Punctuality Stats</h2>
-    <p class="helper-text" style="margin-bottom:12px;">Recorded historical delays over past tracked runs.</p>
-
-    {% if stats %}
-    <div class="stat-row">
-        <div class="stat"><div class="stat-label">Average Delay</div><div class="stat-value">{{ stats.average }} min</div></div>
-        <div class="stat"><div class="stat-label">Max Delay</div><div class="stat-value">{{ stats.maximum }} min</div></div>
-        <div class="stat"><div class="stat-label">On-Time Rate</div><div class="stat-value">{{ stats.on_time_pct }}%</div></div>
-        <div class="stat"><div class="stat-label">Tracked Journeys</div><div class="stat-value">{{ summary.journeys }}</div></div>
-    </div>
-    {% else %}
-        <p class="helper-text">No recorded historical delay metrics available for this train.</p>
-    {% endif %}
-</div>
-
-<!-- SECTION 4: MAP (IN BETWEEN - PRIZED POSSESSION) -->
-{% if map_path %}
-<div class="card hero-map-card">
-    <div class="section-title-row">
-        <h2>Interactive Route Map</h2>
-        <span class="schedule-tag">Whole Train Route</span>
-    </div>
-    <iframe src="{{ map_path }}" class="map-iframe"></iframe></div>
-{% endif %}
-
-<!-- SECTION 5: STATION ROUTE TIMELINE -->
-{% if route_timeline %}
-<div class="card">
-    <div class="section-title-row">
-        <h2>Station Route & Scheduled Timings</h2>
-        <span class="schedule-tag">All Stops</span>
-    </div>
-
-    <div class="wmt-timeline">
-    {% for stop in route_timeline %}
-        {% set is_user_dep = (segment_info and stop.code == segment_info.dep_station) %}
-        {% set is_user_arr = (segment_info and stop.code == segment_info.arr_station) %}
-
-        <div class="wmt-stop {% if is_user_dep %}is-user-start{% endif %} {% if is_user_arr %}is-user-end{% endif %} {% if loop.first %}is-first{% endif %} {% if loop.last %}is-last{% endif %}">
-            <div class="wmt-node-col">
-                <div class="wmt-line-upper"></div>
-                <div class="wmt-dot"></div>
-                <div class="wmt-line-lower"></div>
-            </div>
-
-            <div class="wmt-info">
-                <div class="wmt-station-name">
-                    {{ stop.name }} <span class="wmt-station-code">({{ stop.code }})</span>
-                    {% if is_user_dep %}<span class="user-tag">Boarding</span>{% endif %}
-                    {% if is_user_arr %}<span class="user-tag">Destination</span>{% endif %}
-                </div>
-                <div class="wmt-meta">
-                    {% if stop.platform %}PF {{ stop.platform }} &middot; {% endif %}
-                    {% if stop.distance %}{{ stop.distance }} km{% endif %}
-                </div>
-            </div>
-
-            <div class="wmt-timing">
-                <div class="wmt-time">{{ stop.time }}</div>
-                {% if stop.delay %}
-                    <div class="wmt-delay text-danger">+{{ stop.delay }}m delay</div>
-                {% else %}
-                    <div class="wmt-delay text-success">On Time</div>
-                {% endif %}
-            </div>
-        </div>
-    {% endfor %}
-    </div>
-</div>
-{% endif %}
 """
 
 # ==============================================================================
-# FLASK ROUTING LOGIC
+# FLASK ROUTES
 # ==============================================================================
 @app.route("/", methods=["GET", "POST"])
 def home():
@@ -359,6 +368,11 @@ def home():
     city_a = request.form.get("city_a", "").strip()
     city_b = request.form.get("city_b", "").strip()
     sort_by = request.form.get("sort_by", "delay")
+
+    # Reject empty submissions before station lookup
+    if not city_a or not city_b:
+        return redirect("/")
+
     a_codes = get_city_station_codes(city_a)
     b_codes = get_city_station_codes(city_b)
 
@@ -367,46 +381,56 @@ def home():
     elif (not is_curated_city(city_a) and len(a_codes) > 30) or (not is_curated_city(city_b) and len(b_codes) > 30):
         error = "Search matched too many stations — try a more specific city or station name."
     else:
-        matches = find_trains_between_cities(a_codes, b_codes)[:5]
+        # 1. Segment-matched trains (calculates segment timings from timetable)
+        matches = find_trains_between_cities(a_codes, b_codes)
+        top_matches = matches[:20]
 
-        with ThreadPoolExecutor(max_workers=5) as ex:
-            delay_results = list(ex.map(lambda m: get_quick_delay(m["train_no"]), matches))
+        # 2. 1 Batched Supabase query for all 20 trains
+        train_nos = [m["train_no"] for m in top_matches]
+        delay_map = get_delay_summaries(train_nos)
 
         results = []
-        for m, (avg_delay, journeys) in zip(matches, delay_results):
+        for m in top_matches:
             info = get_train_info(m["train_no"])
-            duration_h = int(info["duration_h"]) if info and str(info["duration_h"]).isdigit() else 0
-            duration_m = int(info["duration_m"]) if info and str(info["duration_m"]).isdigit() else 0
+            summary = delay_map.get(m["train_no"], {"average_delay": None, "journeys": 0})
             results.append({
-                "train_no": m["train_no"], "name": info["name"] if info else "Unknown Train",
-                "dep_station": m["dep_station"], "dep_station_name": get_station_name(m["dep_station"]),
-                "dep_time": m["dep_time"], "dep_day": m["dep_day"],
-                "arr_station": m["arr_station"], "arr_station_name": get_station_name(m["arr_station"]),
-                "arr_time": m["arr_time"], "arr_day": m["arr_day"],
-                "average_delay": avg_delay, "journeys": journeys,
+                "train_no": m["train_no"],
+                "name": info["name"] if info else "Unknown Train",
+                "dep_station": m["dep_station"],
+                "dep_station_name": get_station_name(m["dep_station"]),
+                "dep_time": m["dep_time"],
+                "dep_day": m["dep_day"],
+                "arr_station": m["arr_station"],
+                "arr_station_name": get_station_name(m["arr_station"]),
+                "arr_time": m["arr_time"],
+                "arr_day": m["arr_day"],
+                "average_delay": summary.get("average_delay"),
+                "journeys": summary.get("journeys", 0),
                 "runs_days": info["runs_days"] if info else "N/A",
-                "duration_h": duration_h, "duration_m": duration_m,
-                "duration_min": duration_h * 60 + duration_m,
+                "duration_h": m["duration_h"],
+                "duration_m": m["duration_m"],
+                "duration_min": m["duration_min"],
+                "is_recommended": False,
+                "reason": "",
             })
 
+        # 3. Crash-proof sorting
         if sort_by == "duration":
             results.sort(key=lambda r: r["duration_min"])
         elif sort_by == "departure":
             results.sort(key=lambda r: r["dep_time"])
         else:
-            results.sort(key=lambda r: (r["average_delay"] is None, r["average_delay"]))
+            results.sort(key=lambda r: (
+                r["average_delay"] is None,
+                r["average_delay"] if r["average_delay"] is not None else 999999
+            ))
 
-        # Reset recommendations
-        for r in results:
-            r["is_recommended"] = False
-
-        # Pick lowest delay train from sorted results
-        eligible = [r for r in results if r["average_delay"] is not None]
+        # 4. Recommend only trains with genuine verified history
+        eligible = [r for r in results if r["average_delay"] is not None and r["journeys"] > 0]
         if eligible:
-            # Sort eligible list specifically by average delay to guarantee lowest delay gets recommended
             best = min(eligible, key=lambda x: x["average_delay"])
             best["is_recommended"] = True
-            best["reason"] = f"Lowest avg delay ({best['average_delay']} mins)"
+            best["reason"] = f"Lowest avg delay ({best['average_delay']} min over {best['journeys']} runs)"
 
     return render_template_string(
         RESULTS_PAGE, results=results, error=error, city_a=city_a, city_b=city_b, sort_by=sort_by,
@@ -418,29 +442,21 @@ def train_detail(train_no):
     from_city = request.args.get("from", "")
     to_city = request.args.get("to", "")
 
-    # 1. Fetch local dataset information
-    summary = get_train_history(train_no)
+    delays_data = get_delay_summaries([train_no]).get(train_no, {})
+    avg_delay = delays_data.get("average_delay")
+    journeys = delays_data.get("journeys", 0)
+    stats = delays_data.get("stats")
+
     info = get_train_info(train_no)
     map_path = f"/map/{train_no}"
     route_timeline = get_route_timeline(train_no)
-    stats = get_delay_stats(summary.get("individual_delays", []))
 
-    # 2. Fetch real-time live running status from API
-    live_data = get_live_status(train_no)
+    summary = {
+        "train_no": train_no,
+        "average_delay": avg_delay,
+        "journeys": journeys,
+    }
 
-    # Merge live tracking details into your summary dictionary
-    if live_data:
-        summary["current_station"] = live_data.get("current_station", "N/A")
-        summary["live_delay"] = live_data.get("delay_minutes", 0)
-        summary["live_status"] = live_data.get("status_message", "Running on time")
-        # Overwrite default average with current real-time delay if available
-        summary["average_delay"] = live_data.get("delay_minutes", summary.get("average_delay"))
-    else:
-        summary["current_station"] = "Unknown"
-        summary["live_delay"] = None
-        summary["live_status"] = "Live status unavailable"
-
-    # 3. Calculate segment info for searched routes
     segment_info = None
     if from_city and to_city:
         a_codes = get_city_station_codes(from_city)
@@ -448,15 +464,13 @@ def train_detail(train_no):
         matches = find_trains_between_cities(a_codes, b_codes)
         segment_match = next((m for m in matches if m["train_no"] == train_no), None)
         if segment_match:
-            duration_h = int(info["duration_h"]) if info and str(info.get("duration_h", "")).isdigit() else 0
-            duration_m = int(info["duration_m"]) if info and str(info.get("duration_m", "")).isdigit() else 0
             segment_info = {
                 "dep_station": segment_match["dep_station"],
                 "arr_station": segment_match["arr_station"],
                 "dep_time": segment_match["dep_time"],
                 "arr_time": segment_match["arr_time"],
-                "duration_h": duration_h,
-                "duration_m": duration_m
+                "duration_h": segment_match["duration_h"],
+                "duration_m": segment_match["duration_m"],
             }
 
     return render_template_string(
@@ -469,19 +483,16 @@ def train_detail(train_no):
         segment_info=segment_info,
         route_timeline=route_timeline,
         stats=stats,
-        live_data=live_data
     )
+
 
 @app.route("/map/<train_no>")
 def route_map(train_no):
     if not train_no.isdigit() or len(train_no) > 6:
         return "Invalid train number", 400
-
     html = get_map_html(train_no)
-
     if not html:
         return "<p style='font-family:sans-serif;padding:16px'>Route map unavailable.</p>", 404
-
     return html, 200, {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "public, max-age=300"

@@ -51,7 +51,7 @@ def get_live_last_ride(train_no):
             continue
     return None
 
-def get_last_n_rides(train_no, n=7, max_lookback=30):
+def get_last_n_rides(train_no, n=30, max_lookback=31):
     results = []
     for days_back in range(1, max_lookback):
         if len(results) >= n:

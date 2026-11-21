@@ -102,7 +102,7 @@ def get_quick_delay(train_no):
 def get_train_history(train_no):
     summary = get_train_summary(train_no)
     if summary["journeys"] == 0 and not os.environ.get("VERCEL"):
-        rides = get_last_n_rides(train_no, n=7)
+        rides = get_last_n_rides(train_no, n=30, max_lookback=31)
         delays = [r["delay"] for r in rides if r["delay"] is not None]
         summary = {
             "train_no": train_no, "journeys": len(delays),
