@@ -35,6 +35,8 @@ import sys
 import time
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
+import urllib.request
+import urllib.parse
 
 try:
     from dotenv import load_dotenv
@@ -86,23 +88,37 @@ def parse_verified_delay(status):
     return "verified", delay, ""
 
 
-def fetch_status(client, train_no: str, journey_date: date, max_retries: int):
-    """Bounded retries with exponential backoff. Returns (status, error_or_None)."""
-    arg = ntes_date_arg(journey_date)  # outside try: a port error must crash, not retry
+def fetch_status(client, train_no: str, journey_date, max_retries: int):
+    """Fetches NTES data directly (local) or via Vercel proxy (cloud)."""
+    api_date = journey_date.strftime("%d-%b-%Y")
+    use_proxy = os.environ.get("USE_VERCEL_PROXY") == "1"
+
+    # Your Vercel production URL
+    url = f"https://know-your-train.vercel.app/api/ntes?train={train_no}&date={urllib.parse.quote(api_date)}"
+
     last_exc = None
     for attempt in range(1, max_retries + 1):
         try:
-            return client.live_status(train_no, arg), None
-        except Exception as exc:  # network errors, NTES parse errors, rate limits
+            if use_proxy:
+                req = urllib.request.Request(url, headers={"User-Agent": "GitHubActions"})
+                with urllib.request.urlopen(req, timeout=30) as response:
+                    status = json.loads(response.read().decode())
+                    if "error" in status:
+                        raise RuntimeError(status["error"])
+                    return status, None
+            else:
+                # Direct call for local development
+                return client.live_status(train_no, api_date), None
+        except Exception as exc:
             last_exc = exc
             if attempt < max_retries:
                 wait = min(30, 2 ** attempt) + random.uniform(0, 1)
                 log.warning("NTES %s %s attempt %d/%d failed (%s); retry in %.1fs",
-                            train_no, journey_date, attempt, max_retries,
+                            train_no, api_date, attempt, max_retries,
                             type(exc).__name__, wait)
                 time.sleep(wait)
-    return None, f"{type(last_exc).__name__}: {last_exc}"[:300]
 
+    return None, f"{type(last_exc).__name__}: {last_exc}"[:300]
 # ---------------------------------------------------------------------------
 # Config and inputs
 # ---------------------------------------------------------------------------

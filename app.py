@@ -506,6 +506,33 @@ def train_lookup():
         return redirect(f"/train/{train_no}")
     return redirect("/?error=train_not_found")
 
+import json
+from ntes import NTESClient
+
+@app.route("/api/ntes")
+def proxy_ntes():
+    train = request.args.get("train")
+    date = request.args.get("date")
+    if not train or not date:
+        return {"error": "Missing train or date"}, 400
+
+    try:
+        # This runs on Vercel's Mumbai server, so NTES sees an Indian IP
+        client = NTESClient()
+        status = client.live_status(train, date)
+
+        # Ensure the response is JSON serializable (or a dict)
+        if status is None:
+            return {"error": "Empty response from NTES"}, 404
+
+        if hasattr(status, "model_dump"):
+            status = status.model_dump()
+        elif hasattr(status, "dict"):
+            status = status.dict()
+
+        return status
+    except Exception as e:
+        return {"error": str(e)}, 500
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -1,7 +1,6 @@
 name: Collect Train History
 on:
   schedule:
-    # Every 2 hours UTC (12 runs/day). 12 shards × 2h = full coverage daily.
     - cron: "30 0,2,4,6,8,10,12,14,16,18,20,22 * * *"
   workflow_dispatch:
     inputs:
@@ -54,6 +53,7 @@ jobs:
           fi
       - name: Collect historical train delays
         env:
+          USE_VERCEL_PROXY: "1"
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           TRAIN_NUMBERS: ${{ inputs.train_numbers }}
