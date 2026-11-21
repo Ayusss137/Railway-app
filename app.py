@@ -534,5 +534,11 @@ def proxy_ntes():
     except Exception as e:
         return {"error": str(e)}, 500
 
+@app.route("/api/debug-db")
+def debug_db():
+    import history_store
+    result = history_store.get_delay_summaries(["12658", "12620", "06903"])
+    return result
+
 if __name__ == "__main__":
     app.run(debug=True)
